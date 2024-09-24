@@ -48,6 +48,8 @@ def plot_per_group(df, att = None, outcome="score", density=True):
     #         # legend=True
     #         )
     ax.set_title('Histogram - ' + att)
+    ax.set_xlabel("Exam score")
+    ax.set_ylabel("Proportion of students for a given exam band.")
     ax.grid(True, linestyle='--', alpha=0.8)
     return fig
 
@@ -73,9 +75,10 @@ def show_correlations(df):
                                  )
     )
     st.write(df_corr)
-    st.write("pct_weeks_online = Percentage of weeks in the course that a student logged in Moodle (at least once)")
-    st.write("exam = Exam Score")
-    st.write("TMA 1-6 = The score in the Tutor Marked Assignment")
+    st.write("Each value in the table is a Person correlation coefficient between the two variables.")
+    st.write("- pct_weeks_online = Percentage of weeks in the course that a student logged in Moodle (at least once)")
+    st.write("- exam = Exam Score")
+    st.write("- TMA 1-6 = The score in the Tutor Marked Assignment")
 
 
 def show_histograms(df):
@@ -89,24 +92,34 @@ def show_histograms(df):
                                                             'Age',
                                                             'Other credits'])
     col = col_dict[selected_column_name]
+    df_filt = df.loc[lambda df_: df_.mod_pres == mod_pres]
     st.pyplot(
-        plot_per_group(df, att = col, outcome="exam", density=True)
+        plot_per_group(df_filt, att = col, outcome="exam", density=True)
     )
 
     st.header("Count of students")
-    counts_all = "Overall Number of students: " + str(len(df))
+    counts_all = "Overall Number of students: " + str(len(df_filt))
     st.write(counts_all)
 
     if selected_column_name != 'Overall':
-        counts = df.groupby(col).size().rename('Number of students')   
+        counts = df_filt.groupby(col).size().rename('Number of students')   
         st.write(counts)
+
+def show_data_overview(df):
+    st.header('Data Overview')
+    mod_pres = st.sidebar.selectbox("Select Course",mod_pres_list)
+    st.write("Data description")
 
 def main():
     df = pd.read_csv('./data/stud_course_all.csv')
     # st.set_option("deprecation.showPyplotGlobalUse", False)
     # st.sidebar.image('./smartlearning_logo.jpg', use_column_width=True)
     st.sidebar.title("OULAD Visualisation")
-    option = st.sidebar.selectbox("Select View", ["Correlations", "Histograms"])
+    option = st.sidebar.selectbox("Select View", ["Data Overview",
+                                                  "Task 1: Histograms", 
+                                                  "Task 2: Correlations", ])
+    if option == "Correlations":
+        show_data_overview(df)
     if option == "Correlations":
         show_correlations(df)
     if option == "Histograms":
