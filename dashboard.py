@@ -30,12 +30,29 @@ def plot_per_group(df, att = None, outcome="score", density=True):
         df = df.groupby(att)
     else:
         att = 'Overall'
-    df[outcome].hist(density=density,
+    density_inner = st.selectbox("Normalise the counts", ['YES','NO'])   
+    fill = st.selectbox("Type of fil", ['Outline only','Filled'])
+    if fill == 'Filled':
+        fill_type = 'stepfilled'
+    else:
+        fill_type = 'step' 
+
+    if density_inner == 'YES':
+        density_inner_flag = 1
+        y_legend = "Proportion of students for a given exam band."
+    else:
+        density_inner_flag = 0
+        y_legend = "Frequency - number of students for a given exam band"
+
+
+
+    df[outcome].hist(
+        density=density_inner_flag,
             bins=bins, 
             alpha=0.5,
             ax=ax, 
             legend=True,
-            histtype="step",
+            histtype=fill_type,
             lw=3
             )
     
@@ -49,11 +66,12 @@ def plot_per_group(df, att = None, outcome="score", density=True):
     #         )
     ax.set_title('Histogram - ' + att)
     ax.set_xlabel("Exam score")
-    ax.set_ylabel("Proportion of students for a given exam band.")
+    ax.set_ylabel(y_legend)
     ax.grid(True, linestyle='--', alpha=0.8)
     return fig
 
-def show_correlations(df):
+
+def show_correlations_tma(df):
     st.header('Correlations')
     mod_pres = st.sidebar.selectbox("Select Course",mod_pres_list)   
     
@@ -81,6 +99,83 @@ def show_correlations(df):
     st.write("- TMA 1-6 = The score in the Tutor Marked Assignment")
 
 
+def show_correlations(df):
+    st.header('Correlations')
+    # mod_pres = st.sidebar.selectbox("Select Course",mod_pres_list)   
+
+    st.markdown("""Each value in the two tables below is a [Pearson correlation coefficient](https://en.wikipedia.org/wiki/Pearson_correlation_coefficient) between the semester score that the student gained and the exam score.
+- **semester_score** = Weighted average of assignments accumulated during the semester.
+- **exam** = Exam Score
+    """)
+    
+
+    df_corr = (df
+        # .loc[lambda df_: df_.mod_pres == mod_pres]
+        .groupby(['mod_pres'])
+        [[
+          'ocas','exam'
+          ]]
+        .corr()
+        #  ['exam']
+        #  .unstack()['score']
+        # .reset_index()
+        .round(4)
+        .dropna(axis='index',how='all')
+        .dropna(axis='columns',how='all')
+        .reset_index()
+        .drop(columns=['ocas'])
+        .set_index('mod_pres')
+        [['exam']]
+        .loc[lambda df_: df_.exam < 1.0]
+        .style
+            .format(precision=4)
+            .background_gradient(axis=None, vmin=0, vmax=1, 
+                                 cmap="YlGnBu"
+                                 )
+    )
+    st.write('Overall correlation between the semester score and the exam score.')
+    st.write(df_corr)
+
+
+    st.write("**Correlations per student factors**")
+    selected_column_name = st.selectbox("Select a column", [
+        # 'Overall',
+        'Gender',
+                                                            'Is repeating',
+                                                            'Disability',
+                                                            'Previous education',
+                                                            'Age',
+                                                            'Other credits'])
+    col = col_dict[selected_column_name]
+    df_corr_col = (df
+        # .loc[lambda df_: df_.mod_pres == mod_pres]
+        .groupby(['mod_pres',col])
+        [[
+          'ocas','exam'
+          ]]
+        .corr()
+        .round(4)
+        # .dropna(axis='index',how='all')
+        # .dropna(axis='columns',how='all')
+        ['exam']
+        .loc[lambda df_: df_ < 1.0]
+        .unstack().unstack()['ocas']
+        .style
+            .format(precision=4)
+            .background_gradient(axis=None, vmin=0, vmax=1, 
+                                 cmap="YlGnBu"
+                                 )
+    )
+    
+    st.write(df_corr_col)
+    
+    st.write("**Student Counts**")
+    counts = df.groupby(['mod_pres',col]).size().unstack()   
+    
+    st.write(counts)
+    
+    
+
 def show_histograms(df):
     st.header('Histograms')
     mod_pres = st.sidebar.selectbox("Select Course",mod_pres_list)
@@ -105,10 +200,51 @@ def show_histograms(df):
         counts = df_filt.groupby(col).size().rename('Number of students')   
         st.write(counts)
 
+
 def show_data_overview(df):
     st.header('Data Overview')
-    mod_pres = st.sidebar.selectbox("Select Course",mod_pres_list)
-    st.write("Data description")
+    # mod_pres = st.sidebar.selectbox("Select Course",mod_pres_list)
+    st.markdown("""
+**Data description**
+
+The data describes two course CCC and DDD from OULAD dataset, in 4 different presntations (runs). For CCC it is 2014B and 2014J. For DDD it is 2013B, 2013J, 2014B and 2014J.
+- **B** - the course starts in February
+- **J** - the course starts in October
+
+Both courses are from the STEM area, and they have a duration more than 30 weeks. Students need to gain enough points during the semester and then pass the exam to pass the whole course.
+                 
+**Attributes**
+- **Is repeating** - New=New student, Repeating=student already tried to take this module in the past but did not finish it (it might be early or late withdrawal, failing the exam)           
+- **Disability** - Flag whether the student has declared any disability (Y/N)
+- **Gender** - Male or Female
+- **Previous education** - Highest education level achieved before the start of the course banded into three categories, based on A-level (similar to maturita exam)                
+- **Age** - Age of the student at the start of the course banded into two categories (older or younger than 35 years)
+- **Other credits** - Total number of enrolled credits in other than the studied course, banded into three categories - [0-1] = no other credits, [1-60) - less than 60, [60,600) - more than 60 
+               
+                
+    """)
+
+    st.write("**Student Counts**")
+    counts = df.groupby(['mod_pres']).size().rename('Total number')   
+    counts_gender = df.groupby(['mod_pres','gender']).size().unstack().add_prefix('gender_')
+    counts_age = df.groupby(['mod_pres','age_band']).size().unstack().add_prefix('age_')
+    counts_rep = df.groupby(['mod_pres','is_repeating']).size().unstack().add_prefix('repeat_')
+    counts_dis = df.groupby(['mod_pres','disability']).size().unstack().add_prefix('disability_')
+    counts_educ = df.groupby(['mod_pres','educ_band']).size().unstack().add_prefix('educ_')
+    counts_cred = df.groupby(['mod_pres','credits_other_band']).size().unstack().add_prefix('credits_')
+    
+    counts  = (pd.DataFrame(counts)
+               .merge(counts_gender, on=['mod_pres'])
+               .merge(counts_age, on=['mod_pres'])
+               .merge(counts_rep, on=['mod_pres'])
+
+               .merge(counts_dis, on=['mod_pres'])
+               .merge(counts_educ, on=['mod_pres'])
+               .merge(counts_cred, on=['mod_pres'])
+    )
+    st.write(counts)
+    
+
 
 def main():
     df = pd.read_csv('./data/stud_course_all.csv')
@@ -116,9 +252,9 @@ def main():
     # st.sidebar.image('./smartlearning_logo.jpg', use_column_width=True)
     st.sidebar.title("OULAD Visualisation")
     option = st.sidebar.selectbox("Select View", ["Data Overview",
-                                                  "Task 1: Histograms", 
-                                                  "Task 2: Correlations", ])
-    if option == "Correlations":
+                                                  "Histograms", 
+                                                  "Correlations"])
+    if option == "Data Overview":
         show_data_overview(df)
     if option == "Correlations":
         show_correlations(df)
