@@ -20,41 +20,64 @@ def plot_per_group(df, att = None, outcome="score", density=True):
     #     .groupby(['code_module','code_presentation','assessment_name'])
     # )
     
-    if outcome == 'exam':
-        bins = (10, 20, 30, 40, 50, 60, 70, 80, 90, 101)
-    else:
-        bins = (.1,.2,.3,.4,.5,.6,.7,.8,.9,1.01)
+    # if outcome == 'exam':
+    #     bins = (0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 101)
+    # else:
+    #     bins = (.1,.2,.3,.4,.5,.6,.7,.8,.9,1.01)
     fig, ax = plt.subplots(figsize=(8, 6))
     # for (g, grp), ax in zip(groups, axes.flatten()):
     if att is not None:
         df = df.groupby(att)
     else:
         att = 'Overall'
-    density_inner = st.selectbox("Normalise the counts", ['YES','NO'])   
-    fill = st.selectbox("Type of fil", ['Outline only','Filled'])
-    if fill == 'Filled':
-        fill_type = 'stepfilled'
+    type_of_graph = st.selectbox("Type of graph", ['Histogram','Cumulative histogram','Density plot'])   
+    if type_of_graph == 'Histogram':
+        cumulative=0
+        bins = (0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 101)
+    elif type_of_graph == 'Cumulative histogram':
+        cumulative=1
+        bins = range(0,101)
+
+    ind = range(0,101)
+    if type_of_graph == 'Density plot':
+        y_legend = "Density"
+        df[outcome].plot.kde(
+                # density=density_inner_flag,
+                # bins=bins, 
+                # alpha=0.5,
+                ax=ax, 
+                legend=True,
+                ind=ind,
+                bw_method=0.5,
+                # histtype=fill_type,
+                # cumulative=cumulative,
+                # lw=3
+                )
     else:
-        fill_type = 'step' 
+        fill = st.selectbox("Type of fil", ['Outline only','Filled'])
+        density_inner = st.selectbox("Normalise the counts", ['YES','NO'])   
 
-    if density_inner == 'YES':
-        density_inner_flag = 1
-        y_legend = "Proportion of students for a given exam band."
-    else:
-        density_inner_flag = 0
-        y_legend = "Frequency - number of students for a given exam band"
+        if fill == 'Filled':
+            fill_type = 'stepfilled'
+        else:
+            fill_type = 'step' 
 
-
-
-    df[outcome].hist(
-        density=density_inner_flag,
-            bins=bins, 
-            alpha=0.5,
-            ax=ax, 
-            legend=True,
-            histtype=fill_type,
-            lw=3
-            )
+        if density_inner == 'YES':
+            density_inner_flag = 1
+            y_legend = "Proportion of students for a given exam band."
+        else:
+            density_inner_flag = 0
+            y_legend = "Frequency - number of students for a given exam band"
+        df[outcome].hist(
+            density=density_inner_flag,
+                bins=bins, 
+                alpha=0.5,
+                ax=ax, 
+                legend=True,
+                histtype=fill_type,
+                cumulative=cumulative,
+                lw=3
+                )
     
     # ax.hist(df[outcome],
     #         density=density,
@@ -138,7 +161,7 @@ def show_correlations(df):
 
 
     st.write("**Correlations per student factors**")
-    selected_column_name = st.selectbox("Select a column", [
+    selected_column_name = st.selectbox("Select a grouping column", [
         # 'Overall',
         'Gender',
                                                             'Is repeating',
