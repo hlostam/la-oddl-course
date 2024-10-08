@@ -2,6 +2,7 @@ import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
 
+import plotly.express as px
 
 mod_pres_list = ['CCC_2014B','CCC_2014J','DDD_2013B','DDD_2013J','DDD_2014B','DDD_2014J']
 col_dict = {'Gender':'gender',
@@ -25,7 +26,7 @@ def plot_per_group(df, att = None, outcome="score", density=True):
     # else:
     #     bins = (.1,.2,.3,.4,.5,.6,.7,.8,.9,1.01)
     fig, ax = plt.subplots(figsize=(8, 6))
-    # for (g, grp), ax in zip(groups, axes.flatten()):
+    # for (g, grp), ax in zip(groups, axes.flatten()):f
     if att is not None:
         df = df.groupby(att)
     else:
@@ -48,7 +49,7 @@ def plot_per_group(df, att = None, outcome="score", density=True):
                 ax=ax, 
                 legend=True,
                 ind=ind,
-                bw_method=0.5,
+                bw_method=0.3,
                 # histtype=fill_type,
                 # cumulative=cumulative,
                 # lw=3
@@ -94,23 +95,29 @@ def plot_per_group(df, att = None, outcome="score", density=True):
     return fig
 
 
-def show_correlations_tma(df):
-    st.header('Correlations')
-    mod_pres = st.sidebar.selectbox("Select Course",mod_pres_list)   
-    
+def show_correlations_tma(df, assessment_types = 'both', precision=4):
+    st.header('TMA Correlations')
+    if assessment_types == 'TMA':
+        asssessments = ['TMA 1','TMA 2','TMA 3','TMA 4','TMA 5','TMA 6', 'exam']
+    elif assessment_types == 'CMA':
+        asssessments = ['CMA 1','CMA 2','CMA 3','CMA 4','CMA 5','CMA 6','CMA 7', 'exam']
+    elif assessment_types == 'both':
+        asssessments = ['TMA 1','TMA 2','TMA 3','TMA 4','TMA 5','TMA 6',
+                    'CMA 1','CMA 2','CMA 3','CMA 4','CMA 5','CMA 6','CMA 7', 
+                    'exam']
+
     df_corr = (df
-        .loc[lambda df_: df_.mod_pres == mod_pres]
-        [['pct_weeks_online',
-          'exam','TMA 1','TMA 2','TMA 3','TMA 4','TMA 5','TMA 6']]
+        
+        [asssessments]
         .corr()
         #  ['pct_weeks_active_before_exam']
         #  .unstack()['score']
         # .reset_index()
-        .round(2)
+        .round(precision)
         .dropna(axis='index',how='all')
         .dropna(axis='columns',how='all')
         .style
-            .format(precision=4)
+            .format(precision=precision)
             .background_gradient(axis=None, vmin=0, vmax=1, 
                                  cmap="YlGnBu"
                                  )
@@ -121,8 +128,170 @@ def show_correlations_tma(df):
     st.write("- exam = Exam Score")
     st.write("- TMA 1-6 = The score in the Tutor Marked Assignment")
 
+def show_registrations(df_reg):
+    st.header('Registrations')
+    max_reg = df_reg.num_students_registered.max()
+    # fig, ax = plt.subplots(figsize=(8, 6))
+    df_reg = df_reg.set_index('week').assign(pct_registered_student = lambda df_: ((df_.num_students_registered/max_reg)* 100) )
+    density_inner = st.selectbox("Normalise the counts", ['YES','NO'])
+    if density_inner == "YES":
+        col = 'pct_registered_student'
+    else:
+        col = 'num_students_registered'
+    
+    # plot_reg = (df_reg[col]
+    #     # .loc[lambda df_: df_.mod_pres == 'CCC_2014J']
+    #     # .set_index('week')
+    #     .plot(ax=ax)
+    #     .set_ylim(0,None)
+    # )
+    # st.pyplot(fig)
+    df_to_plot = df_reg[col].reset_index()
+    fig = px.line(df_to_plot.reset_index(), x='week', y=df_to_plot.columns)  # Replace with your column names
+    # fig.update_layout(title='Multiple Lines Plot', xaxis_title='Index', yaxis_title='Values')
+    # fig.show()
+    st.plotly_chart(fig, key="regisration", on_select="rerun")
+    
 
-def show_correlations(df):
+def show_engagement(df_vle, df_vle_demog, df_reg):
+    st.header("VLE Engagement")
+    mod_pres = st.sidebar.selectbox("Select Course", mod_pres_list) 
+    df_vle_filt = (df_vle
+                   .loc[lambda df_: df_.mod_pres == mod_pres]
+        .drop(columns=['mod_pres'])
+        # .set_index(['assessment_name'])
+    )
+    df_reg_filt = (df_reg
+                         .loc[lambda df_: df_.mod_pres == mod_pres]
+        # .drop(columns=['mod_pres'])
+        # .set_index(['assessment_name'])
+    )
+    
+    # fig, ax = plt.subplots(figsize=(8, 6))
+    df_to_plot = (df_vle_filt
+                .set_index(['week'])
+                .dropna(axis='columns',how='all')
+                # .drop(columns=drop_cols)
+                .rename(columns={'oucollaborate':'Online class','ouelluminate':'Online class',
+                                 'resource':'PDF Download','forumng':'Forum',
+                                 'oucontent':'HTML text',
+                                 'url':'External link',
+                                 'homepage':'Homepage',
+                                 'quiz':'Quiz','externalquiz':'Quiz',
+                                 'ouwiki':'Wiki',
+                                 'glossary':'Glossary'
+                                 })
+                .fillna(0)
+                )
+    drop_cols = ['dataplus','page','sharedsubpage','dualpane','folder','subpage']
+    for col in drop_cols:
+        if col in df_to_plot:
+            df_to_plot = df_to_plot.drop(columns=[col])
+
+    # plot_vle = (df_to_plot
+    #             .plot(ax=ax).set_ylim(0,1))
+    # # st.write(df_to_plot)
+    # st.write("Percentage of students in VLE per each Moodle activity type.")
+    # st.pyplot(fig)
+
+    
+    fig = px.line(df_to_plot.reset_index(), x='week', y=df_to_plot.columns)  # Replace with your column names
+    # fig.update_layout(title='Multiple Lines Plot', xaxis_title='Index', yaxis_title='Values')
+    # fig.show()
+    st.plotly_chart(fig, key="vle_at", on_select="rerun")
+
+    st.write("Overall percentage of students in VLE per demographic group.")
+    selected_column_name = get_selected_column()
+    col = col_dict[selected_column_name]
+    if selected_column_name != 'Overall':
+        df_vle_demog_filt = (df_vle_demog
+                    .loc[lambda df_: df_.mod_pres == mod_pres]
+            .loc[lambda df_: df_.col == col]
+            .drop(columns=['mod_pres','col'])
+            .set_index(['week','val'])
+            .unstack()
+            ['pct_students']
+            # .set_index(['assessment_name'])
+        )
+        
+
+        # fig2, ax2 = plt.subplots(figsize=(8, 6))
+        fig2 = px.line(df_vle_demog_filt.reset_index(), x='week', y=df_vle_demog_filt.columns)  # Replace with your column names
+        # plot_vle_demog = (df_vle_demog_filt.plot(ax=ax2).set_ylim(0,1))
+        # st.pyplot(fig2)
+        # fig.update_layout(title='Multiple Lines Plot', xaxis_title='Index', yaxis_title='Values')
+        # fig.show()
+        st.plotly_chart(fig2, theme=None, key="vle_grp", on_select="rerun")
+        # st.write(df_vle_demog_filt.T)
+    # vle_weekly_demog_all.loc[lambda df_: df_.col == 'gender'].drop(columns=['col']).set_index(['mod_pres','week','level_2']).unstack()['pct_students']
+
+    show_registrations(df_reg_filt)
+
+
+def show_assessment_difficulty(df, df_ass, df_ass_stats, precision=2):
+    st.header('TMA difficulty')
+    asssessments = ['TMA 1','TMA 2','TMA 3','TMA 4','TMA 5','TMA 6',
+                    'CMA 1','CMA 2','CMA 3','CMA 4','CMA 5','CMA 6','CMA 7', 
+                    'exam']
+    # asssessments = [, 'exam']
+    # st.write(df_ass_stats.head())
+    # st.write(df_ass.head())
+    
+    df_res_all = (df[asssessments].mean().dropna().round(precision).rename('Average Score')
+            .reset_index()
+        .merge(df_ass, left_on=['index'], right_index=True)
+        .merge(df_ass_stats
+               .drop(columns=['week','num_students_registered','num_submitted',
+                              'avg_score','score_std']).round(precision)
+               .assign(pct_late = lambda df_: df_.pct_late * 100,
+                       pct_submitted = lambda df_: df_.pct_submitted * 100), 
+               left_on=['index'], right_index=True)
+        .set_index(['index'])
+        .sort_values(by=['date'])
+        [['date','week','weight','pct_submitted','pct_late','Average Score']]
+    )
+    st.write(df_res_all)
+
+    st.header('-- per student factor')
+    selected_column_name = get_selected_column()
+    col = col_dict[selected_column_name]
+    # df_2 = df
+
+    if selected_column_name != 'Overall':
+        df_res = (df.groupby(col)[asssessments].mean().transpose().dropna(axis='index',how='all')
+                  .add_prefix('Average Score '))
+        df_res = (df_res.style
+            .format(precision=precision)
+            .background_gradient(axis=None, vmin=0, vmax=100, 
+                                 cmap="YlGnBu"
+                                 )
+                                 )
+        st.write(df_res)
+
+
+
+def show_assessment_correlations(df, df_ass, df_ass_stats):
+    st.header('Assessment Correlations')
+    mod_pres = st.sidebar.selectbox("Select Course", mod_pres_list)   
+    
+    
+    df_filt = df.loc[lambda df_: df_.mod_pres == mod_pres]
+    df_ass_filt = (df_ass.loc[lambda df_: df_.mod_pres == mod_pres]
+        .drop(columns=['code_module','code_presentation', 'mod_pres'])
+        .set_index(['assessment_name'])
+    )
+    df_ass_stats_filt = (df_ass_stats
+                         .loc[lambda df_: df_.mod_pres == mod_pres]
+        .drop(columns=['mod_pres'])
+        .set_index(['assessment_name'])
+    )
+    
+
+    show_correlations_tma(df_filt)
+    show_assessment_difficulty(df_filt, df_ass_filt, df_ass_stats_filt)
+    
+
+def show_correlations(df, precision=4):
     st.header('Correlations')
     # mod_pres = st.sidebar.selectbox("Select Course",mod_pres_list)   
 
@@ -142,7 +311,7 @@ def show_correlations(df):
         #  ['exam']
         #  .unstack()['score']
         # .reset_index()
-        .round(4)
+        .round(precision)
         .dropna(axis='index',how='all')
         .dropna(axis='columns',how='all')
         .reset_index()
@@ -151,7 +320,7 @@ def show_correlations(df):
         [['exam']]
         .loc[lambda df_: df_.exam < 1.0]
         .style
-            .format(precision=4)
+            .format(precision=precision)
             .background_gradient(axis=None, vmin=0, vmax=1, 
                                  cmap="YlGnBu"
                                  )
@@ -161,14 +330,8 @@ def show_correlations(df):
 
 
     st.write("**Correlations per student factors**")
-    selected_column_name = st.selectbox("Select a grouping column", [
-        # 'Overall',
-        'Gender',
-                                                            'Is repeating',
-                                                            'Disability',
-                                                            'Previous education',
-                                                            'Age',
-                                                            'Other credits'])
+    selected_column_name = get_selected_column()
+
     col = col_dict[selected_column_name]
     df_corr_col = (df
         # .loc[lambda df_: df_.mod_pres == mod_pres]
@@ -197,18 +360,21 @@ def show_correlations(df):
     
     st.write(counts)
     
-    
 
-def show_histograms(df):
-    st.header('Histograms')
-    mod_pres = st.sidebar.selectbox("Select Course",mod_pres_list)
-    selected_column_name = st.selectbox("Select a column", [
+def get_selected_column():
+    return st.selectbox("Select a column", [
         'Overall','Gender',
                                                             'Is repeating',
                                                             'Disability',
                                                             'Previous education',
                                                             'Age',
                                                             'Other credits'])
+
+
+def show_histograms(df):
+    st.header('Histograms')
+    mod_pres = st.sidebar.selectbox("Select Course",mod_pres_list)
+    selected_column_name = get_selected_column()
     col = col_dict[selected_column_name]
     df_filt = df.loc[lambda df_: df_.mod_pres == mod_pres]
     st.pyplot(
@@ -271,18 +437,30 @@ Both courses are from the STEM area, and they have a duration more than 30 weeks
 
 def main():
     df = pd.read_csv('./data/stud_course_all.csv')
+    df_ass = pd.read_csv('./data/assessments.csv')
+    df_ass_stats = pd.read_csv('./data/stud_ass_stats.csv')
+    df_reg = pd.read_csv('./data/reg_stat_weekly_all.csv')
+    df_vle = pd.read_csv('./data/vle_by_act_all.csv')
+    df_vle_demog = pd.read_csv('./data/vle_weekly_demog_all.csv')
     # st.set_option("deprecation.showPyplotGlobalUse", False)
     # st.sidebar.image('./smartlearning_logo.jpg', use_column_width=True)
     st.sidebar.title("OULAD Visualisation")
     option = st.sidebar.selectbox("Select View", ["Data Overview",
-                                                  "Histograms", 
-                                                  "Correlations"])
-    if option == "Data Overview":
+                                                  "Task1_Histograms", 
+                                                #   "Correlations",
+                                                  "Task2_Assessments",
+                                                  "Task2_Engagement"
+                                                  ])
+    if option == "_Data Overview":
         show_data_overview(df)
     if option == "Correlations":
         show_correlations(df)
-    if option == "Histograms":
+    if option == "Task1_Histograms":
         show_histograms(df)
+    if option == "Task2_Assessments":
+        show_assessment_correlations(df, df_ass, df_ass_stats)
+    if option == "Task2_Engagement":
+        show_engagement(df_vle, df_vle_demog, df_reg)
     # elif option == "Data Dictionary & Raw":
 
 
