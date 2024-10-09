@@ -445,7 +445,7 @@ def main():
     # st.set_option("deprecation.showPyplotGlobalUse", False)
     # st.sidebar.image('./smartlearning_logo.jpg', use_column_width=True)
     st.sidebar.title("OULAD Visualisation")
-    option = st.sidebar.selectbox("Select View", ["Data Overview",
+    option = st.sidebar.selectbox("Select View", ["_Data Overview",
                                                   "Task1_Histograms", 
                                                 #   "Correlations",
                                                   "Task2_Assessments",
