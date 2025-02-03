@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import plotly.express as px
 
 mod_pres_list = ['CCC_2014B','CCC_2014J','DDD_2013B','DDD_2013J','DDD_2014B','DDD_2014J']
-mod_pres_list_task2 = ['CCC_2014B', 'DDD_2013B', 'DDD_2014B' ]
+mod_pres_list_task2 = ['CCC_2014B', 'DDD_2013B', 'DDD_2014B', 'CCC_2014J' ]
 
 col_dict = {'Gender':'gender',
             'Disability':'disability',
